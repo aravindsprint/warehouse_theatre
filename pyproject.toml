@@ -1,0 +1,19 @@
+[project]
+name = "warehouse_theatre"
+authors = [
+    { name = “Aravind”, email = "aravindsprint@“gmail.com }
+]
+description = "Theatre-style warehouse storage capacity visualization for ERPNext"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "frappe",
+]
+
+[build-system]
+requires = ["flit_core >=3.4.0,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "warehouse_theatre"
