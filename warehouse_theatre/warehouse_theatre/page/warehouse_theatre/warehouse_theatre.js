@@ -268,21 +268,23 @@ var WT_CSS = `
 
 /* ── Floor view: horizontal scroll of section columns ── */
 #wt-floor-view {
-  flex:1; overflow-x:auto; overflow-y:auto; padding:20px;
-  display:flex; align-items:flex-start;
+  flex:1; overflow-y:auto; padding:20px;
 }
-#wt-floor-view::-webkit-scrollbar { height:5px; width:5px; }
+#wt-floor-view::-webkit-scrollbar { width:5px; }
 #wt-floor-view::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:10px; }
 
-/* sections in a horizontal row */
+/* 4-column wrapping grid */
 #wt-sections-row {
-  display:flex; gap:16px; align-items:flex-start; min-width:max-content;
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:16px;
+  align-items:start;
 }
 
 /* ── Section column card ── */
 .wt-sec-card {
   background:#fff; border-radius:14px; padding:14px 12px;
-  border:2px solid #e2e8f0; width:180px; flex-shrink:0;
+  border:2px solid #e2e8f0; width:100%;
   box-shadow:0 1px 3px rgba(0,0,0,0.06);
   transition:border-color 0.15s, box-shadow 0.15s;
 }
