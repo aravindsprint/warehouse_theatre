@@ -1,0 +1,15 @@
+{
+ "doctype": "Page",
+ "module": "Warehouse Theatre",
+ "name": "warehouse-theatre",
+ "page_name": "warehouse-theatre",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Stock Manager"},
+  {"role": "Stock User"},
+  {"role": "Warehouse User"}
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "Warehouse Theatre"
+}
