@@ -1,5 +1,5 @@
 /* ============================================================
-   Warehouse Theatre — Frappe Page  v0.5.0
+   Warehouse Theatre — Frappe Page  v0.6.0
    Section-column layout matching reference UI
    ============================================================ */
 
