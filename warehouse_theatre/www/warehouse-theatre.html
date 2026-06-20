@@ -1,0 +1,38 @@
+{%- raw -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Warehouse Theatre</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/warehouse_theatre/images/favicon.svg"/>
+  <link rel="manifest" href="/assets/warehouse_theatre/manifest.json"/>
+  <meta name="theme-color" content="#378ADD"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Warehouse Theatre"/>
+  <link rel="apple-touch-icon" href="/assets/warehouse_theatre/icons/apple-touch-icon.png"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;overflow:hidden;background:#0c0e14}
+    #wt-root{width:100%;height:100vh}
+  </style>
+</head>
+<body>
+  <div id="wt-root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/assets/warehouse_theatre/sw.js', {scope:'/'})
+        .catch(e => console.warn('SW:', e));
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/assets/warehouse_theatre/js/wt-vue.js?v=2"></script>
+  <script>
+    if (window.WarehouseTheatre) window.WarehouseTheatre.init('wt-root');
+  </script>
+</body>
+</html>
+{%- endraw -%}

@@ -1,0 +1,2 @@
+# Add patches here as:
+# warehouse_theatre.patches.patch_module.execute
