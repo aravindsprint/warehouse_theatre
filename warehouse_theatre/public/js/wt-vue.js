@@ -29,7 +29,7 @@ function lvKey(sl,lv)  { return sl.wh+'__'+lv.wh; }
 /* ─────────────────────────────────────────────────────────────
    FRAPPE API  (auto-detect desk vs www)
 ───────────────────────────────────────────────────────────── */
-const API_PREFIX = 'warehouse_theatre.warehouse_theatre.api.api.';
+const API_PREFIX = 'warehouse_theatre.warehouse_theatre.warehouse_theatre.api.api.';
 
 function call(method, args={}) {
   const fullMethod = API_PREFIX + method;
@@ -62,7 +62,27 @@ const CSS = `
 #wt-c{display:block;width:100%;height:100%}
 #wt-top{position:absolute;top:0;left:148px;right:0;display:flex;align-items:center;gap:10px;padding:9px 14px;background:linear-gradient(to bottom,rgba(12,14,20,.97) 55%,transparent);z-index:10;pointer-events:none}
 #wt-app.light #wt-top{background:rgba(240,242,245,.95);backdrop-filter:blur(4px)}
-#wt-search-wrap{position:relative;pointer-events:all;flex:1;max-width:280px}
+@media(max-width:600px){
+  #wt-top{left:0;flex-wrap:wrap;padding:6px 8px;gap:5px;background:var(--wt-bg);border-bottom:1px solid var(--wt-border)}
+  #wt-brand{display:none}
+  .wt-sep{display:none}
+  #wt-search-wrap{order:3;flex:1 1 100%;max-width:100%}
+  .wt-pills{margin-left:0;gap:4px}
+  .wt-pill{min-width:38px;padding:2px 6px}
+  .wt-pv{font-size:12px}
+  .wt-pl{font-size:8px}
+  .wt-sw-btn{height:28px;padding:0 10px;font-size:11px}
+  #wt-bot{left:0}
+  #wt-view2d{left:0;top:80px}
+  #wt-sb{transform:translateX(-100%);transition:transform .28s cubic-bezier(.34,1.56,.64,1),background .3s}
+  #wt-sb.mobile-open{transform:translateX(0)}
+  #wt-sb-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:14}
+  #wt-sb-overlay.show{display:block}
+  #wt-mob-menu{display:flex}
+  .wt-3d-wrap-mobile{top:52px!important}
+}
+#wt-mob-menu{display:none;width:30px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);cursor:pointer;align-items:center;justify-content:center;font-size:14px;pointer-events:all;flex-shrink:0}
+#wt-app.light #wt-mob-menu{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.05)}
 #wt-search{width:100%;height:28px;border-radius:7px;border:1px solid var(--wt-border);background:var(--wt-card);color:var(--wt-text);font-size:11px;padding:0 28px 0 28px;outline:none;transition:border-color .15s}
 #wt-search::placeholder{color:var(--wt-text3)}
 #wt-search:focus{border-color:var(--wt-accent)}
@@ -356,9 +376,9 @@ const store = reactive({
   searchQuery: '',
   selKey: null,
   dpOpen: false,
-  dpData: null,       // {slot, lv}
+  dpData: null,
   imOpen: false,
-  imData: null,       // {slot, lv}
+  imData: null,
   imKeepTabs: false,
   cfgOpen: false,
   cfgSlot: null,
@@ -369,13 +389,12 @@ const store = reactive({
   fpGroup: null,
   fpSaveOk: false,
   fpSaving: false,
-  // tooltip
   ttVisible: false,
   ttX: 0,
   ttY: 0,
   ttData: null,
-  // three.js bridge
   threeReady: false,
+  sidebarOpen: false,
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -662,6 +681,10 @@ const engine = new ThreeEngine();
    ACTIONS  (business logic, shared across components)
 ───────────────────────────────────────────────────────────── */
 const actions = {
+  toggleSidebar() {
+    store.sidebarOpen = !store.sidebarOpen;
+  },
+
   async loadGroups() {
     store.loading=true;
     try {
@@ -676,6 +699,7 @@ const actions = {
     store.curGrp=g;
     store.dpOpen=false;
     store.imOpen=false;
+    store.sidebarOpen=false;
     store.loading=true;
     try {
       const slots = await call('get_slots',{group_warehouse:g.id});
@@ -797,8 +821,12 @@ const actions = {
     store.curView=v;
     const cw3d=document.getElementById('wt-cw');
     const v2d=document.getElementById('wt-view2d');
+    const isMobile=window.innerWidth<=600;
     if(cw3d) cw3d.style.display=v==='3d'?'block':'none';
-    if(v2d)  v2d.style.display=v==='2d'?'block':'none';
+    if(v2d){
+      v2d.style.display=v==='2d'?'block':'none';
+      if(isMobile) v2d.style.top='80px';
+    }
     if (v==='3d' && store.slots.length) engine.buildScene(filteredSlots());
   },
 
@@ -901,23 +929,26 @@ const Sidebar = defineComponent({
     return { store, byParent, actions };
   },
   template: `
-    <div id="wt-sb">
-      <div class="wt-sb-brand">Warehouse Theatre</div>
-      <div id="wt-sb-list">
-        <template v-for="(gs, parent) in byParent" :key="parent">
-          <span class="wt-sb-label">{{parent}}</span>
-          <div v-for="g in gs" :key="g.id"
-            :class="['wt-g-item', store.curGrp?.id===g.id?'act':'']"
-            @click="actions.selectGroup(g)">
-            <span class="wt-g-name">{{g.name}}</span>
-            <span class="wt-g-meta">{{g.slot_count||0}} slots</span>
-          </div>
-        </template>
-      </div>
-      <div class="wt-sb-foot">
-        <button class="wt-sb-btn" style="margin-bottom:6px"
-          @click="actions.fpOpen(store.curGrp, store.slots)">⋹ Edit floor plan</button>
-        <button class="wt-sb-btn" @click="actions.openCfg(null)">⚙ Configure slot</button>
+    <div>
+      <div id="wt-sb-overlay" :class="store.sidebarOpen?'show':''" @click="actions.toggleSidebar()"></div>
+      <div id="wt-sb" :class="store.sidebarOpen?'mobile-open':''">
+        <div class="wt-sb-brand">Warehouse Theatre</div>
+        <div id="wt-sb-list">
+          <template v-for="(gs, parent) in byParent" :key="parent">
+            <span class="wt-sb-label">{{parent}}</span>
+            <div v-for="g in gs" :key="g.id"
+              :class="['wt-g-item', store.curGrp?.id===g.id?'act':'']"
+              @click="actions.selectGroup(g)">
+              <span class="wt-g-name">{{g.name}}</span>
+              <span class="wt-g-meta">{{g.slot_count||0}} slots</span>
+            </div>
+          </template>
+        </div>
+        <div class="wt-sb-foot">
+          <button class="wt-sb-btn" style="margin-bottom:6px"
+            @click="actions.fpOpen(store.curGrp, store.slots)">⋹ Edit floor plan</button>
+          <button class="wt-sb-btn" @click="actions.openCfg(null)">⚙ Configure slot</button>
+        </div>
       </div>
     </div>
   `,
@@ -945,6 +976,7 @@ const TopBar = defineComponent({
   },
   template: `
     <div id="wt-top">
+      <button id="wt-mob-menu" @click="actions.toggleSidebar()" aria-label="Menu">☰</button>
       <div id="wt-brand">Warehouse Theatre</div>
       <div class="wt-sep"></div>
       <div id="wt-switcher">
@@ -1472,6 +1504,7 @@ const App = defineComponent({
           actions.closeItemModal();
           actions.fpClose();
           actions.clearSearch();
+          store.sidebarOpen=false;
         }
       });
       await actions.loadGroups();
