@@ -29,7 +29,7 @@ function lvKey(sl,lv)  { return sl.wh+'__'+lv.wh; }
 /* ─────────────────────────────────────────────────────────────
    FRAPPE API  (auto-detect desk vs www)
 ───────────────────────────────────────────────────────────── */
-const API_PREFIX = 'warehouse_theatre.warehouse_theatre.warehouse_theatre.api.api.';
+const API_PREFIX = 'warehouse_theatre.warehouse_theatre.api.api.';
 
 function call(method, args={}) {
   const fullMethod = API_PREFIX + method;
@@ -127,13 +127,13 @@ const CSS = `
 .wt-sb-foot{margin-top:auto;padding:8px 10px;border-top:1px solid rgba(255,255,255,.06)}
 .wt-sb-btn{width:100%;height:28px;border-radius:6px;border:1px solid rgba(59,130,246,.4);background:rgba(59,130,246,.1);color:#60a5fa;font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;line-height:1}
 .wt-sb-btn:hover{background:rgba(59,130,246,.2)}
-#wt-tt{position:absolute;background:rgba(10,12,18,.96);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:9px 11px;pointer-events:none;z-index:50;min-width:155px}
-#wt-tt-title{font-size:11px;font-weight:700;margin-bottom:5px}
+#wt-tt{position:absolute;background:var(--wt-bg2);border:1px solid var(--wt-border);border-radius:9px;padding:9px 11px;pointer-events:none;z-index:50;min-width:155px;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+#wt-tt-title{font-size:11px;font-weight:700;margin-bottom:5px;color:var(--wt-text)}
 .wt-tt-row{display:flex;align-items:center;gap:5px;margin-bottom:2px}
 .wt-tt-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.wt-tt-lbl{font-size:9px;color:rgba(255,255,255,.45);flex:1}
+.wt-tt-lbl{font-size:9px;color:var(--wt-text2);flex:1}
 .wt-tt-val{font-size:9px;font-weight:700}
-.wt-tt-bar{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:6px;overflow:hidden}
+.wt-tt-bar{height:3px;background:var(--wt-cb);border-radius:2px;margin-top:6px;overflow:hidden}
 .wt-tt-fill{height:100%;border-radius:2px}
 #wt-dp{position:absolute;right:0;top:0;bottom:0;width:216px;background:var(--wt-bg2);border-left:1px solid var(--wt-border);transform:translateX(100%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);z-index:20;overflow-y:auto;padding:12px}
 #wt-dp::-webkit-scrollbar{width:3px}
@@ -1052,7 +1052,7 @@ const Tooltip = defineComponent({
           <span class="wt-tt-val" :style="{color:UCH[i]}">{{fmt(u.qty)}}/{{u.cap>0?fmt(u.cap):'∞'}}</span>
         </div>
       </div>
-      <div v-else style="font-size:9px;color:rgba(255,255,255,.28);margin-top:2px">Empty level</div>
+      <div v-else style="font-size:9px;color:var(--wt-text3);margin-top:2px">Empty level</div>
       <div class="wt-tt-bar"><div class="wt-tt-fill" :style="{width:lp+'%',background:clr}"></div></div>
     </div>
   `,
