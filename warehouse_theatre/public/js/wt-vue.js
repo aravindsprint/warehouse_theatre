@@ -83,7 +83,15 @@ const CSS = `
 }
 #wt-mob-menu{display:none;width:30px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);cursor:pointer;align-items:center;justify-content:center;font-size:14px;pointer-events:all;flex-shrink:0}
 #wt-app.light #wt-mob-menu{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.05)}
-#wt-aisle-ctrl{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;flex-direction:column;align-items:center;gap:8px}
+#wt-aisle-picker{position:absolute;inset:0;background:rgba(0,0,0,.65);z-index:80;display:flex;align-items:center;justify-content:center}
+#wt-aisle-picker-box{background:#13151e;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px;min-width:280px;max-width:360px;box-shadow:0 24px 64px rgba(0,0,0,.6);animation:wtCfgIn .2s cubic-bezier(.34,1.56,.64,1)}
+.wt-aisle-picker-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
+.wt-aisle-picker-sub{font-size:11px;color:rgba(255,255,255,.35);margin-bottom:14px}
+.wt-aisle-gap-btn{width:100%;height:40px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;padding:0 14px;gap:10px;margin-bottom:6px;transition:all .15s}
+.wt-aisle-gap-btn:hover{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#93c5fd}
+.wt-aisle-gap-icon{font-size:16px}
+.wt-aisle-cancel{width:100%;height:32px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;margin-top:6px}
+.wt-aisle-cancel:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7)}
 #wt-aisle-ctrl.show{display:flex}
 .wt-aisle-pad{display:grid;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px);gap:4px}
 .wt-aisle-key{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;backdrop-filter:blur(4px)}
@@ -405,6 +413,9 @@ const store = reactive({
   threeReady: false,
   sidebarOpen: false,
   aisleMode: false,
+  aislePickerOpen: false,
+  aisleGaps: [],
+  _aisleStartX: 0,
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -735,42 +746,108 @@ const engine = new ThreeEngine();
    ACTIONS  (business logic, shared across components)
 ───────────────────────────────────────────────────────────── */
 const actions = {
-  enterAisleView() {
+  enterAisleView(gapIndex=null) {
     if (!store.slots.length) return;
-    // Find the Z position of the aisle gap — midpoint between first and second row
-    const rows = [...new Set(store.slots.map(s=>s.row))].sort((a,b)=>a-b);
-    if (rows.length < 2) {
-      // Only one row — position in front of it
-      engine.enterAisleView(-4);
-    } else {
-      // Find gap between row 0 and row 1 in 3D space
-      // The gap center is approximately at z offset of row 0 depth + gap/2
-      engine.enterAisleView(0);
+    const SW=2.2, SD=2.2, GAP=.6;
+
+    // Calculate row Z positions (same as buildScene)
+    const maxRow=Math.max(...store.slots.map(s=>s.row),0);
+    const maxCol=Math.max(...store.slots.map(s=>s.col),0);
+    let cumZ=0;
+    const rowZOffset={};
+    const rowGaps={};
+    for (let r=0;r<=maxRow;r++){
+      rowZOffset[r]=cumZ;
+      const rowSlots=store.slots.filter(s=>s.row===r);
+      const rowGap=rowSlots.length?(parseFloat(rowSlots[0].row_gap)||0):0;
+      rowGaps[r]=rowGap;
+      cumZ+=SD+GAP+rowGap;
     }
-    // Setup keyboard movement
-    const keys = {};
-    const onKey = e => {
-      if (!store.aisleMode) return;
-      keys[e.code] = e.type === 'keydown';
-    };
-    const moveLoop = () => {
-      if (!store.aisleMode) return;
-      const fwd = (keys['KeyW']||keys['ArrowUp']?1:0) - (keys['KeyS']||keys['ArrowDown']?1:0);
-      const str = (keys['KeyD']||keys['ArrowRight']?1:0) - (keys['KeyA']||keys['ArrowLeft']?1:0);
-      if (fwd||str) engine.moveAisle(fwd, str, 0, 0);
+    const totalDepth=cumZ-GAP;
+    const oz=-totalDepth/2;
+    const ox=-((maxCol+1)*(SW+GAP)-GAP)/2;
+    const startX=ox+(maxCol/2)*(SW+GAP);
+
+    // Build list of aisle gaps (between consecutive rows)
+    const rows=[...new Set(store.slots.map(s=>s.row))].sort((a,b)=>a-b);
+    const aisleGaps=[];
+
+    // Gap before first row
+    aisleGaps.push({
+      label: `Before Row ${rows[0]+1}`,
+      z: oz+(rowZOffset[rows[0]]||0)-2,
+    });
+
+    // Gaps between rows
+    for (let i=0;i<rows.length-1;i++){
+      const r0=rows[i], r1=rows[i+1];
+      const z0=oz+(rowZOffset[r0]||0)+SD;
+      const z1=oz+(rowZOffset[r1]||0);
+      aisleGaps.push({
+        label: `Aisle between Row ${r0+1} & Row ${r1+1}`,
+        z: (z0+z1)/2,
+      });
+    }
+
+    // Gap after last row
+    aisleGaps.push({
+      label: `After Row ${rows[rows.length-1]+1}`,
+      z: oz+(rowZOffset[rows[rows.length-1]]||0)+SD+2,
+    });
+
+    store.aisleGaps = aisleGaps;
+    store.aisleGapIndex = null;
+
+    // If only one gap or specific gap requested, enter directly
+    if (gapIndex !== null) {
+      this._startAisleAt(aisleGaps[gapIndex], startX);
+    } else if (aisleGaps.length === 1) {
+      this._startAisleAt(aisleGaps[0], startX);
+    } else {
+      // Show gap picker
+      store.aislePickerOpen = true;
+      store._aisleStartX = startX;
+    }
+  },
+
+  enterAisleGap(index) {
+    store.aislePickerOpen = false;
+    const gap = store.aisleGaps[index];
+    actions._startAisleAt(gap, store._aisleStartX);
+  },
+
+  _startAisleAt(gap, startX) {
+    engine.aisleMode = true;
+    engine.fpX = startX;
+    engine.fpY = 2.0;
+    engine.fpZ = gap.z;
+    engine.fpYaw = Math.PI/2;
+    engine.fpPitch = 0;
+    engine.fpSpeed = 0.18;
+    store.aisleMode = true;
+    store.aislePickerOpen = false;
+
+    const keys={};
+    const onKeyDown=e=>{if(store.aisleMode)keys[e.code]=true;};
+    const onKeyUp=e=>{keys[e.code]=false;};
+    const moveLoop=()=>{
+      if(!store.aisleMode) return;
+      const fwd=(keys['KeyW']||keys['ArrowUp']?1:0)-(keys['KeyS']||keys['ArrowDown']?1:0);
+      const str=(keys['KeyD']||keys['ArrowRight']?1:0)-(keys['KeyA']||keys['ArrowLeft']?1:0);
+      if(fwd||str) engine.moveAisle(fwd,str,0,0);
       requestAnimationFrame(moveLoop);
     };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('keyup', onKey);
-    store._aisleKeyDown = onKey;
-    store._aisleKeyUp = onKey;
+    document.addEventListener('keydown',onKeyDown);
+    document.addEventListener('keyup',onKeyUp);
+    store._aisleKeyDown=onKeyDown;
+    store._aisleKeyUp=onKeyUp;
     moveLoop();
   },
 
   exitAisleView() {
     engine.exitAisleView();
-    if (store._aisleKeyDown) { document.removeEventListener('keydown', store._aisleKeyDown); }
-    if (store._aisleKeyUp) { document.removeEventListener('keyup', store._aisleKeyUp); }
+    if (store._aisleKeyDown) document.removeEventListener('keydown', store._aisleKeyDown);
+    if (store._aisleKeyUp)   document.removeEventListener('keyup',   store._aisleKeyUp);
   },
 
   async loadGroups() {
@@ -1606,11 +1683,34 @@ const Loading = defineComponent({
 });
 
 /* ─────────────────────────────────────────────────────────────
+   COMPONENT: AislePicker
+───────────────────────────────────────────────────────────── */
+const AislePicker = defineComponent({
+  name: 'AislePicker',
+  setup(){ return { store, actions }; },
+  template: `
+    <div id="wt-aisle-picker" v-if="store.aislePickerOpen" @click.self="store.aislePickerOpen=false">
+      <div id="wt-aisle-picker-box">
+        <div class="wt-aisle-picker-title">👁 Choose an Aisle</div>
+        <div class="wt-aisle-picker-sub">Select which aisle gap to walk through</div>
+        <button v-for="(gap, i) in store.aisleGaps" :key="i"
+          class="wt-aisle-gap-btn"
+          @click="actions.enterAisleGap(i)">
+          <span class="wt-aisle-gap-icon">🚶</span>
+          {{gap.label}}
+        </button>
+        <button class="wt-aisle-cancel" @click="store.aislePickerOpen=false">Cancel</button>
+      </div>
+    </div>
+  `,
+});
+
+/* ─────────────────────────────────────────────────────────────
    ROOT APP COMPONENT
 ───────────────────────────────────────────────────────────── */
 const App = defineComponent({
   name: 'WarehouseTheatreVue',
-  components: { Sidebar, TopBar, BottomBar, Tooltip, DetailPanel, ItemModal, ConfigModal, FloorPlanModal, View3D, View2D, Loading },
+  components: { Sidebar, TopBar, BottomBar, Tooltip, DetailPanel, ItemModal, ConfigModal, FloorPlanModal, View3D, View2D, Loading, AislePicker },
   setup(){
     onMounted(async ()=>{
       // Keyboard shortcuts
@@ -1640,6 +1740,7 @@ const App = defineComponent({
       <ItemModal/>
       <ConfigModal/>
       <FloorPlanModal/>
+      <AislePicker/>
       <Loading/>
     </div>
   `,
