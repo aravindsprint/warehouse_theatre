@@ -29,7 +29,7 @@ function lvKey(sl,lv)  { return sl.wh+'__'+lv.wh; }
 /* ─────────────────────────────────────────────────────────────
    FRAPPE API  (auto-detect desk vs www)
 ───────────────────────────────────────────────────────────── */
-const API_PREFIX = 'warehouse_theatre.warehouse_theatre.api.api.';
+const API_PREFIX = 'warehouse_theatre.warehouse_theatre.warehouse_theatre.api.api.';
 
 function call(method, args={}) {
   const fullMethod = API_PREFIX + method;
