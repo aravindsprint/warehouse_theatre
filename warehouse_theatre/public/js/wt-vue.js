@@ -81,6 +81,7 @@ const CSS = `
   #wt-mob-menu{display:flex}
   .wt-3d-wrap-mobile{top:52px!important}
 }
+#wt-search-wrap{position:relative;pointer-events:all;flex:1;max-width:280px}
 #wt-mob-menu{display:none;width:30px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);cursor:pointer;align-items:center;justify-content:center;font-size:14px;pointer-events:all;flex-shrink:0}
 #wt-app.light #wt-mob-menu{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.05)}
 #wt-aisle-picker{position:absolute;inset:0;background:rgba(0,0,0,.65);z-index:80;display:flex;align-items:center;justify-content:center}
@@ -92,8 +93,10 @@ const CSS = `
 .wt-aisle-gap-icon{font-size:16px}
 .wt-aisle-cancel{width:100%;height:32px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;margin-top:6px}
 .wt-aisle-cancel:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7)}
+#wt-aisle-ctrl{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;flex-direction:column;align-items:center;gap:8px;pointer-events:all}
 #wt-aisle-ctrl.show{display:flex}
-.wt-aisle-pad{display:grid;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px);gap:4px}
+.wt-aisle-pad{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(2,42px);gap:5px}
+.wt-aisle-key{width:42px;height:42px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(15,18,30,.88);color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;backdrop-filter:blur(6px);touch-action:none}
 .wt-aisle-key{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;backdrop-filter:blur(4px)}
 .wt-aisle-key:active{background:rgba(255,255,255,.25)}
 .wt-aisle-key.empty{background:transparent;border:none;pointer-events:none}
@@ -1648,7 +1651,22 @@ const View3D = defineComponent({
         }
       );
     });
-    return { store, engine };
+    let moveInterval = null;
+    function startMove(dir) {
+      stopMove();
+      const move = () => {
+        if (dir==='fwd')   engine.moveAisle(1,0,0,0);
+        if (dir==='back')  engine.moveAisle(-1,0,0,0);
+        if (dir==='left')  engine.moveAisle(0,-1,0,0);
+        if (dir==='right') engine.moveAisle(0,1,0,0);
+      };
+      move();
+      moveInterval = setInterval(move, 80);
+    }
+    function stopMove() {
+      if (moveInterval) { clearInterval(moveInterval); moveInterval=null; }
+    }
+    return { store, engine, startMove, stopMove };
   },
   template: `
     <div id="wt-cw" :style="{display:store.curView==='3d'?'block':'none'}">
@@ -1657,11 +1675,19 @@ const View3D = defineComponent({
         <div id="wt-aisle-hint">Drag to look · WASD or buttons to move</div>
         <div class="wt-aisle-pad">
           <div class="wt-aisle-key empty"></div>
-          <div class="wt-aisle-key" @mousedown="engine.moveAisle(1,0,0,0)" @touchstart.prevent="engine.moveAisle(1,0,0,0)">▲</div>
+          <div class="wt-aisle-key"
+            @mousedown="startMove('fwd')" @mouseup="stopMove()" @mouseleave="stopMove()"
+            @touchstart.prevent="startMove('fwd')" @touchend.prevent="stopMove()">▲</div>
           <div class="wt-aisle-key empty"></div>
-          <div class="wt-aisle-key" @mousedown="engine.moveAisle(0,-1,0,0)" @touchstart.prevent="engine.moveAisle(0,-1,0,0)">◄</div>
-          <div class="wt-aisle-key" @mousedown="engine.moveAisle(-1,0,0,0)" @touchstart.prevent="engine.moveAisle(-1,0,0,0)">▼</div>
-          <div class="wt-aisle-key" @mousedown="engine.moveAisle(0,1,0,0)" @touchstart.prevent="engine.moveAisle(0,1,0,0)">►</div>
+          <div class="wt-aisle-key"
+            @mousedown="startMove('left')" @mouseup="stopMove()" @mouseleave="stopMove()"
+            @touchstart.prevent="startMove('left')" @touchend.prevent="stopMove()">◄</div>
+          <div class="wt-aisle-key"
+            @mousedown="startMove('back')" @mouseup="stopMove()" @mouseleave="stopMove()"
+            @touchstart.prevent="startMove('back')" @touchend.prevent="stopMove()">▼</div>
+          <div class="wt-aisle-key"
+            @mousedown="startMove('right')" @mouseup="stopMove()" @mouseleave="stopMove()"
+            @touchstart.prevent="startMove('right')" @touchend.prevent="stopMove()">►</div>
         </div>
       </div>
     </div>
