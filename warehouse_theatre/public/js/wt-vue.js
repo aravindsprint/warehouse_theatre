@@ -29,7 +29,7 @@ function lvKey(sl,lv)  { return sl.wh+'__'+lv.wh; }
 /* ─────────────────────────────────────────────────────────────
    FRAPPE API  (auto-detect desk vs www)
 ───────────────────────────────────────────────────────────── */
-const API_PREFIX = 'warehouse_theatre.warehouse_theatre.warehouse_theatre.api.api.';
+const API_PREFIX = 'warehouse_theatre.warehouse_theatre.api.api.';
 
 function call(method, args={}) {
   const fullMethod = API_PREFIX + method;
@@ -83,6 +83,7 @@ const CSS = `
 }
 #wt-mob-menu{display:none;width:30px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);cursor:pointer;align-items:center;justify-content:center;font-size:14px;pointer-events:all;flex-shrink:0}
 #wt-app.light #wt-mob-menu{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.05)}
+#wt-search-wrap{position:relative;pointer-events:all;flex:1;max-width:280px}
 #wt-search{width:100%;height:28px;border-radius:7px;border:1px solid var(--wt-border);background:var(--wt-card);color:var(--wt-text);font-size:11px;padding:0 28px 0 28px;outline:none;transition:border-color .15s}
 #wt-search::placeholder{color:var(--wt-text3)}
 #wt-search:focus{border-color:var(--wt-accent)}
@@ -666,11 +667,19 @@ class ThreeEngine {
         this.hovKey=null; onHover(null,0,0); cwEl.style.cursor='grab';
       }
     });
+    // Single click → highlight + side panel only
     cwEl.addEventListener('click',()=>{
       if (!this.hovKey) return;
       const d=this.meshMap[this.hovKey];
       if (!d) return;
-      onClick(d, store.selKey===this.hovKey);
+      onClick(d, store.selKey===this.hovKey, false);
+    });
+    // Double click → open full item modal
+    cwEl.addEventListener('dblclick',()=>{
+      if (!this.hovKey) return;
+      const d=this.meshMap[this.hovKey];
+      if (!d) return;
+      onClick(d, false, true);
     });
   }
 }
@@ -1014,7 +1023,7 @@ const BottomBar = defineComponent({
   setup(){ return {store}; },
   template: `
     <div id="wt-bot" v-if="store.curView==='3d'">
-      <div id="wt-hint">Left drag · orbit &nbsp;|&nbsp; Right drag · pan &nbsp;|&nbsp; Scroll · zoom<br>Click level · inspect &amp; highlight across floor</div>
+      <div id="wt-hint">Left drag · orbit &nbsp;|&nbsp; Right drag · pan &nbsp;|&nbsp; Scroll · zoom<br>Click · highlight &amp; side panel &nbsp;|&nbsp; Double click · full stock details</div>
       <div id="wt-legend">
         <span class="wt-li"><span class="wt-lb" style="background:#4ade80"></span>Low</span>
         <span class="wt-li"><span class="wt-lb" style="background:#facc15"></span>Mid</span>
@@ -1461,11 +1470,19 @@ const View3D = defineComponent({
           store.ttX=x+tw>cwEl.clientWidth?x-tw-12:x+12;
           store.ttY=y>160?y-110:y+10;
         },
-        // click
-        (d, wasSel)=>{
-          engine.highlight(wasSel?null:lvKey(d.slot,d.lv));
-          if (wasSel){ actions.closeDP(); }
-          else { actions.openDP(d); actions.openItemModal(d); }
+        // click — single: highlight + side panel only | double: open full item modal
+        (d, wasSel, isDouble)=>{
+          if (isDouble) {
+            // Double click → open full item modal
+            engine.highlight(lvKey(d.slot,d.lv));
+            actions.openDP(d);
+            actions.openItemModal(d);
+          } else {
+            // Single click → highlight + side panel only
+            engine.highlight(wasSel?null:lvKey(d.slot,d.lv));
+            if (wasSel){ actions.closeDP(); }
+            else { actions.openDP(d); actions.closeItemModal(); }
+          }
         }
       );
     });
