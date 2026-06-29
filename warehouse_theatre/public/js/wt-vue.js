@@ -83,7 +83,15 @@ const CSS = `
 }
 #wt-mob-menu{display:none;width:30px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);cursor:pointer;align-items:center;justify-content:center;font-size:14px;pointer-events:all;flex-shrink:0}
 #wt-app.light #wt-mob-menu{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.05)}
-#wt-search-wrap{position:relative;pointer-events:all;flex:1;max-width:280px}
+#wt-aisle-ctrl{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:20;display:none;flex-direction:column;align-items:center;gap:8px}
+#wt-aisle-ctrl.show{display:flex}
+.wt-aisle-pad{display:grid;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px);gap:4px}
+.wt-aisle-key{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;backdrop-filter:blur(4px)}
+.wt-aisle-key:active{background:rgba(255,255,255,.25)}
+.wt-aisle-key.empty{background:transparent;border:none;pointer-events:none}
+#wt-exit-aisle{height:28px;padding:0 14px;border-radius:7px;border:1px solid rgba(248,113,113,.4);background:rgba(248,113,113,.15);color:#f87171;font-size:10px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px}
+#wt-exit-aisle:hover{background:rgba(248,113,113,.28)}
+#wt-aisle-hint{font-size:9px;color:rgba(255,255,255,.35);text-align:center;line-height:1.6}
 #wt-search{width:100%;height:28px;border-radius:7px;border:1px solid var(--wt-border);background:var(--wt-card);color:var(--wt-text);font-size:11px;padding:0 28px 0 28px;outline:none;transition:border-color .15s}
 #wt-search::placeholder{color:var(--wt-text3)}
 #wt-search:focus{border-color:var(--wt-accent)}
@@ -396,6 +404,7 @@ const store = reactive({
   ttData: null,
   threeReady: false,
   sidebarOpen: false,
+  aisleMode: false,
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -433,6 +442,7 @@ class ThreeEngine {
     this.drag=false; this.rDrag=false; this.lx=0; this.ly=0;
     this.hovKey=null;
     this._animRunning=false;
+    this.aisleMode=false;
   }
 
   init(canvas, cwEl) {
@@ -505,12 +515,45 @@ class ThreeEngine {
   }
 
   _updateCamera() {
+    if (this.aisleMode) {
+      // First-person: camera stays at aisle height, looks along Z axis
+      this.camera.position.set(this.fpX, this.fpY, this.fpZ);
+      this.camera.lookAt(this.fpX + Math.sin(this.fpYaw), this.fpY + this.fpPitch, this.fpZ + Math.cos(this.fpYaw));
+      return;
+    }
     this.camera.position.set(
       this.panX+this.radius*Math.sin(this.phi)*Math.sin(this.theta),
       this.radius*Math.cos(this.phi),
       this.panZ+this.radius*Math.sin(this.phi)*Math.cos(this.theta)
     );
     this.camera.lookAt(this.panX,0,this.panZ);
+  }
+
+  enterAisleView(aisleZ) {
+    // Position camera at human height in the aisle
+    this.aisleMode = true;
+    this.fpX = 0;
+    this.fpY = 2.2;  // ~human eye height
+    this.fpZ = aisleZ;
+    this.fpYaw = Math.PI; // looking along -Z (down the aisle)
+    this.fpPitch = 0;
+    this.fpSpeed = 0.15;
+    store.aisleMode = true;
+  }
+
+  exitAisleView() {
+    this.aisleMode = false;
+    store.aisleMode = false;
+    // Restore orbit view
+    this.tT=.65; this.tP=.78; this.tR=28; this.tPX=0; this.tPZ=0;
+  }
+
+  moveAisle(forward, strafe, turnY, turnX) {
+    if (!this.aisleMode) return;
+    this.fpYaw += turnY * 0.02;
+    this.fpPitch = Math.max(-0.8, Math.min(0.8, this.fpPitch + turnX * 0.02));
+    this.fpX += Math.sin(this.fpYaw) * forward * this.fpSpeed + Math.cos(this.fpYaw) * strafe * this.fpSpeed;
+    this.fpZ += Math.cos(this.fpYaw) * forward * this.fpSpeed - Math.sin(this.fpYaw) * strafe * this.fpSpeed;
   }
 
   buildScene(slots) {
@@ -626,7 +669,9 @@ class ThreeEngine {
       if (!this.drag) return;
       const dx=e.clientX-this.lx, dy=e.clientY-this.ly;
       this.lx=e.clientX; this.ly=e.clientY;
-      if (this.rDrag){
+      if (this.aisleMode) {
+        this.moveAisle(0, 0, -dx, -dy);
+      } else if (this.rDrag){
         this.tPX-=dx*.014*Math.cos(this.theta);
         this.tPZ+=dx*.014*Math.sin(this.theta);
       } else {
@@ -690,8 +735,42 @@ const engine = new ThreeEngine();
    ACTIONS  (business logic, shared across components)
 ───────────────────────────────────────────────────────────── */
 const actions = {
-  toggleSidebar() {
-    store.sidebarOpen = !store.sidebarOpen;
+  enterAisleView() {
+    if (!store.slots.length) return;
+    // Find the Z position of the aisle gap — midpoint between first and second row
+    const rows = [...new Set(store.slots.map(s=>s.row))].sort((a,b)=>a-b);
+    if (rows.length < 2) {
+      // Only one row — position in front of it
+      engine.enterAisleView(-4);
+    } else {
+      // Find gap between row 0 and row 1 in 3D space
+      // The gap center is approximately at z offset of row 0 depth + gap/2
+      engine.enterAisleView(0);
+    }
+    // Setup keyboard movement
+    const keys = {};
+    const onKey = e => {
+      if (!store.aisleMode) return;
+      keys[e.code] = e.type === 'keydown';
+    };
+    const moveLoop = () => {
+      if (!store.aisleMode) return;
+      const fwd = (keys['KeyW']||keys['ArrowUp']?1:0) - (keys['KeyS']||keys['ArrowDown']?1:0);
+      const str = (keys['KeyD']||keys['ArrowRight']?1:0) - (keys['KeyA']||keys['ArrowLeft']?1:0);
+      if (fwd||str) engine.moveAisle(fwd, str, 0, 0);
+      requestAnimationFrame(moveLoop);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('keyup', onKey);
+    store._aisleKeyDown = onKey;
+    store._aisleKeyUp = onKey;
+    moveLoop();
+  },
+
+  exitAisleView() {
+    engine.exitAisleView();
+    if (store._aisleKeyDown) { document.removeEventListener('keydown', store._aisleKeyDown); }
+    if (store._aisleKeyUp) { document.removeEventListener('keyup', store._aisleKeyUp); }
   },
 
   async loadGroups() {
@@ -994,6 +1073,12 @@ const TopBar = defineComponent({
           <button :class="['wt-sw-btn', store.curView==='2d'?'act':'']" @click="actions.setView('2d')">⊞ 2D</button>
         </div>
         <button class="wt-theme-btn" @click="actions.toggleTheme()">{{store.isDark?'🌙':'☀️'}}</button>
+        <button v-if="store.curView==='3d' && !store.aisleMode"
+          class="wt-sw-btn" style="background:rgba(99,102,241,.2);color:#a5b4fc;border:1px solid rgba(99,102,241,.4);border-radius:6px;height:26px;padding:0 10px"
+          @click="actions.enterAisleView()" title="Enter aisle walk-through view">
+          👁 Aisle View
+        </button>
+        <button v-if="store.aisleMode" id="wt-exit-aisle" @click="actions.exitAisleView()">✕ Exit Aisle</button>
       </div>
       <div id="wt-search-wrap">
         <span id="wt-search-ico">🔍</span>
@@ -1486,9 +1571,24 @@ const View3D = defineComponent({
         }
       );
     });
-    return { store };
+    return { store, engine };
   },
-  template: `<div id="wt-cw" :style="{display:store.curView==='3d'?'block':'none'}"><canvas id="wt-c"></canvas></div>`,
+  template: `
+    <div id="wt-cw" :style="{display:store.curView==='3d'?'block':'none'}">
+      <canvas id="wt-c"></canvas>
+      <div id="wt-aisle-ctrl" :class="store.aisleMode?'show':''">
+        <div id="wt-aisle-hint">Drag to look · WASD or buttons to move</div>
+        <div class="wt-aisle-pad">
+          <div class="wt-aisle-key empty"></div>
+          <div class="wt-aisle-key" @mousedown="engine.moveAisle(1,0,0,0)" @touchstart.prevent="engine.moveAisle(1,0,0,0)">▲</div>
+          <div class="wt-aisle-key empty"></div>
+          <div class="wt-aisle-key" @mousedown="engine.moveAisle(0,-1,0,0)" @touchstart.prevent="engine.moveAisle(0,-1,0,0)">◄</div>
+          <div class="wt-aisle-key" @mousedown="engine.moveAisle(-1,0,0,0)" @touchstart.prevent="engine.moveAisle(-1,0,0,0)">▼</div>
+          <div class="wt-aisle-key" @mousedown="engine.moveAisle(0,1,0,0)" @touchstart.prevent="engine.moveAisle(0,1,0,0)">►</div>
+        </div>
+      </div>
+    </div>
+  `,
 });
 
 /* ─────────────────────────────────────────────────────────────
