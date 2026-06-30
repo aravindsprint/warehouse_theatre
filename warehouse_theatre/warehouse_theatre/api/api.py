@@ -1,6 +1,32 @@
 import frappe
 import json
 
+# Roles allowed to VIEW the app (read-only access)
+VIEW_ROLES = {"System Manager", "Stock Manager", "Stock User"}
+# Roles allowed to EDIT (floor plan, configure slot, UOM capacity)
+EDIT_ROLES = {"System Manager"}
+
+
+def _require_view_permission():
+	"""Raise PermissionError unless the current user has a view role."""
+	user_roles = set(frappe.get_roles())
+	if not (user_roles & VIEW_ROLES):
+		frappe.throw(
+			"You do not have permission to view Warehouse Theatre.",
+			frappe.PermissionError
+		)
+
+
+def _require_edit_permission():
+	"""Raise PermissionError unless the current user has an edit role."""
+	user_roles = set(frappe.get_roles())
+	if not (user_roles & EDIT_ROLES):
+		frappe.throw(
+			"You do not have permission to edit Warehouse Theatre. "
+			"Only System Manager can edit floor plans, slot configuration, or UOM capacities.",
+			frappe.PermissionError
+		)
+
 
 def _flt(v):
 	try: return float(v)
@@ -19,6 +45,7 @@ def get_companies():
 @frappe.whitelist()
 def get_warehouse_groups(company=None):
 	"""Return all Floor warehouses grouped under their Building."""
+	_require_view_permission()
 	cf = ''
 	if company:
 		abbr = frappe.db.get_value('Company', company, 'abbr')
@@ -49,6 +76,7 @@ def get_warehouse_groups(company=None):
 @frappe.whitelist()
 def get_slots(group_warehouse):
 	"""Return all Slot warehouses under a Floor, with their Bin levels."""
+	_require_view_permission()
 	slots = frappe.db.sql("""
 		SELECT
 			w.name             AS wh,
@@ -151,7 +179,7 @@ def _get_items(level_wh):
 
 @frappe.whitelist()
 def save_slot_position(warehouse, row, col, row_gap=0):
-	frappe.has_permission('Warehouse', 'write', throw=True)
+	_require_edit_permission()
 	frappe.db.set_value('Warehouse', warehouse, {
 		'wt_row':     _int(row),
 		'wt_col':     _int(col),
@@ -163,7 +191,7 @@ def save_slot_position(warehouse, row, col, row_gap=0):
 
 @frappe.whitelist()
 def save_stack_config(slot_warehouse, levels):
-	frappe.has_permission('Warehouse', 'write', throw=True)
+	_require_edit_permission()
 	if isinstance(levels, str):
 		levels = json.loads(levels)
 
@@ -196,7 +224,7 @@ def save_stack_config(slot_warehouse, levels):
 
 @frappe.whitelist()
 def save_uom_capacity(warehouse, uom, capacity):
-	frappe.has_permission('Warehouse', 'write', throw=True)
+	_require_edit_permission()
 	# Check if row already exists
 	existing = frappe.db.get_value(
 		'Warehouse UOM Capacity',
@@ -234,4 +262,16 @@ def get_summary():
 
 @frappe.whitelist()
 def check_app_permission():
-    return "System Manager" in frappe.get_roles()
+	"""Used by Frappe to decide whether to show the app icon on /apps screen."""
+	user_roles = set(frappe.get_roles())
+	return bool(user_roles & VIEW_ROLES)
+
+
+@frappe.whitelist()
+def get_user_access():
+	"""Returns the current user's access level for the frontend to adapt UI."""
+	user_roles = set(frappe.get_roles())
+	return {
+		"can_view": bool(user_roles & VIEW_ROLES),
+		"can_edit": bool(user_roles & EDIT_ROLES),
+	}

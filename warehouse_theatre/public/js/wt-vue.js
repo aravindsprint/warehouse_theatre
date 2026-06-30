@@ -419,6 +419,8 @@ const store = reactive({
   aislePickerOpen: false,
   aisleGaps: [],
   _aisleStartX: 0,
+  canEdit: false,
+  canView: true,
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -856,6 +858,15 @@ const actions = {
   async loadGroups() {
     store.loading=true;
     try {
+      try {
+        const access = await call('get_user_access');
+        store.canEdit = !!(access && access.can_edit);
+        store.canView = !!(access && access.can_view);
+      } catch(e) {
+        console.error('WT: access check failed', e);
+        store.canEdit = false;
+        store.canView = false;
+      }
       const groups = await call('get_warehouse_groups');
       store.groups = groups||[];
       if (store.groups.length) await actions.selectGroup(store.groups[0]);
@@ -1112,7 +1123,7 @@ const Sidebar = defineComponent({
             </div>
           </template>
         </div>
-        <div class="wt-sb-foot">
+        <div class="wt-sb-foot" v-if="store.canEdit">
           <button class="wt-sb-btn" style="margin-bottom:6px"
             @click="actions.fpOpen(store.curGrp, store.slots)">⋹ Edit floor plan</button>
           <button class="wt-sb-btn" @click="actions.openCfg(null)">⚙ Configure slot</button>
@@ -1257,8 +1268,8 @@ const DetailPanel = defineComponent({
         <div v-for="(u,ui) in (d.lv.uoms||[])" :key="ui" class="wt-urow" style="margin-bottom:6px">
           <div class="wt-ulbl">{{u.u}}</div>
           <div class="wt-utrack"><div class="wt-ufill" :style="{width:(u.cap>0?Math.min(100,Math.round(u.qty/u.cap*100)):100)+'%',background:UCH[ui]}"></div></div>
-          <div class="wt-uval">{{fmt(u.qty)}}/<input class="wt-ucap-inp" type="number" :value="u.cap" min="0"
-            @change="actions.updateCap(d.slot.wh, d.lv.wh, ui, $event.target.value)"/></div>
+          <div class="wt-uval">{{fmt(u.qty)}}/<input v-if="store.canEdit" class="wt-ucap-inp" type="number" :value="u.cap" min="0"
+            @change="actions.updateCap(d.slot.wh, d.lv.wh, ui, $event.target.value)"/><span v-else>{{u.cap>0?fmt(u.cap):'∞'}}</span></div>
         </div>
 
         <div class="wt-divider"></div>
@@ -1293,7 +1304,7 @@ const DetailPanel = defineComponent({
           </div>
         </div>
 
-        <button class="wt-cfg-btn" @click="actions.openCfg(d.slot.wh)">⚙ Configure stack levels</button>
+        <button v-if="store.canEdit" class="wt-cfg-btn" @click="actions.openCfg(d.slot.wh)">⚙ Configure stack levels</button>
       </template>
     </div>
   `,
